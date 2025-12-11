@@ -39,6 +39,14 @@ async def lifespan(app: FastAPI):
         await init_db()
         logger.info("База данных инициализирована")
 
+        # Автоматическая миграция ENUM значений (из верхнего в нижний регистр)
+        from app.services.enum_migration import migrate_enum_values
+        async with AsyncSessionLocal() as session:
+            try:
+                await migrate_enum_values(session)
+            except Exception as e:
+                logger.warning(f"Миграция ENUM пропущена: {e}")
+
         # Добавление начальных данных
         from app.services.init_data import init_categories_and_specialties, create_demo_data
         async with AsyncSessionLocal() as session:
