@@ -25,7 +25,7 @@ router = APIRouter()
 @router.post("", response_model=EmployeeResponse, status_code=status.HTTP_201_CREATED)
 async def create_employee(
     employee_data: EmployeeCreate,
-    current_user: User = Depends(require_role([UserRole.HOUSING_ADMIN])),
+    current_user: User = Depends(require_role([UserRole.ADMIN])),
     db: AsyncSession = Depends(get_db)
 ):
     """Создание нового сотрудника (для админов ЖКХ)"""
@@ -90,7 +90,7 @@ async def create_employee(
 async def get_employees(
     organization_id: int = None,
     specialty_id: int = None,
-    current_user: User = Depends(require_role([UserRole.HOUSING_ADMIN])),
+    current_user: User = Depends(require_role([UserRole.ADMIN])),
     db: AsyncSession = Depends(get_db)
 ):
     """Получение списка сотрудников (для админов ЖКХ)"""
@@ -122,7 +122,7 @@ async def get_current_employee_info(
 @router.get("/{employee_id}", response_model=EmployeeResponse)
 async def get_employee(
     employee_id: int,
-    current_user: User = Depends(require_role([UserRole.HOUSING_ADMIN])),
+    current_user: User = Depends(require_role([UserRole.ADMIN])),
     db: AsyncSession = Depends(get_db)
 ):
     """Получение информации о конкретном сотруднике"""
@@ -143,7 +143,7 @@ async def get_employee(
 async def update_employee(
     employee_id: int,
     employee_data: EmployeeUpdate,
-    current_user: User = Depends(require_role([UserRole.HOUSING_ADMIN])),
+    current_user: User = Depends(require_role([UserRole.ADMIN])),
     db: AsyncSession = Depends(get_db)
 ):
     """Обновление информации о сотруднике (для админов ЖКХ)"""
@@ -187,7 +187,7 @@ async def update_employee(
 async def upload_employee_photo(
     employee_id: int,
     photo: UploadFile = File(...),
-    current_user: User = Depends(require_role([UserRole.HOUSING_ADMIN])),
+    current_user: User = Depends(require_role([UserRole.ADMIN])),
     db: AsyncSession = Depends(get_db)
 ):
     """Загрузка фото сотрудника"""
@@ -216,7 +216,7 @@ async def upload_employee_photo(
 @router.delete("/{employee_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_employee(
     employee_id: int,
-    current_user: User = Depends(require_role([UserRole.HOUSING_ADMIN])),
+    current_user: User = Depends(require_role([UserRole.ADMIN])),
     db: AsyncSession = Depends(get_db)
 ):
     """Удаление сотрудника (для админов ЖКХ)"""

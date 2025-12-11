@@ -10,7 +10,8 @@ from app.api.v1 import (
     employees,
     categories,
     statistics,
-    addresses
+    addresses,
+    notifications
 )
 
 # Создаем главный роутер для v1
@@ -25,3 +26,4 @@ api_router.include_router(employees.router, prefix="/employees", tags=["Employee
 api_router.include_router(categories.router, prefix="/categories", tags=["Categories"])
 api_router.include_router(statistics.router, prefix="/statistics", tags=["Statistics"])
 api_router.include_router(addresses.router, prefix="/addresses", tags=["Addresses"])
+api_router.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])

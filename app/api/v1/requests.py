@@ -42,114 +42,134 @@ router = APIRouter()
 async def create_request(
     description: str = Form(...),
     address: str = Form(...),
-    category_id: int = Form(...),
-    photo: UploadFile = File(...),
+    category: str = Form(...),
+    problem_type: Optional[str] = Form(None),
+    latitude: Optional[float] = Form(None),
+    longitude: Optional[float] = Form(None),
+    photo: Optional[UploadFile] = File(None),
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Создание новой заявки (для пользователей)"""
 
-    # Проверка существования категории
-    result = await db.execute(select(Category).where(Category.id == category_id))
-    category = result.scalar_one_or_none()
+    # Ищем категорию по имени
+    result = await db.execute(select(Category).where(Category.name == category))
+    category_obj = result.scalar_one_or_none()
 
-    if not category:
+    if not category_obj:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Категория не найдена"
+            detail=f"Категория '{category}' не найдена"
         )
 
-    # Сохранение фото
-    photo_path = await save_upload_file(photo, subfolder="requests")
+    # Сохранение фото если есть
+    photo_path = None
+    if photo:
+        photo_path = await save_upload_file(photo, subfolder="requests")
 
     # Создание заявки
     new_request = Request(
         description=description,
         address=address,
-        category_id=category_id,
+        problem_type=problem_type,
+        latitude=latitude,
+        longitude=longitude,
+        category_id=category_obj.id,
         creator_id=current_user.id,
         photo_url=photo_path,
-        status=RequestStatus.NEW,
-        priority=RequestPriority.MEDIUM.value  # По умолчанию средний приоритет
+        status=RequestStatus.PENDING,
+        priority=RequestPriority.MEDIUM  # По умолчанию средний приоритет
     )
 
     db.add(new_request)
     await db.commit()
     await db.refresh(new_request)
 
-    # Асинхронная обработка через OpenAI
-    try:
-        # 1. Анализируем описание проблемы
-        structured_description = await analyze_problem_description(
-            description=description,
-            category_name=category.name
-        )
-
-        # 2. Анализируем фото и определяем приоритет
-        full_photo_path = os.path.join(settings.UPLOAD_DIR, photo_path)
-        priority = await analyze_image_priority(
-            image_path=full_photo_path,
-            structured_description=structured_description,
-            category_name=category.name
-        )
-
-        # Обновляем приоритет заявки
-        new_request.priority = priority
-
-        # 3. Автоматическое назначение на сотрудника
-        # Получаем доступных сотрудников для этой категории
-        from app.models.specialty import Specialty
-
-        result = await db.execute(
-            select(Employee)
-            .join(Specialty)
-            .where(Specialty.category_id == category_id)
-        )
-        available_employees = result.scalars().all()
-
-        if available_employees:
-            # Подготавливаем данные о сотрудниках
-            employees_data = []
-            for emp in available_employees:
-                # Считаем активные заявки сотрудника
-                active_count = await db.execute(
-                    select(func.count(Request.id))
-                    .where(
-                        and_(
-                            Request.assignee_id == emp.id,
-                            Request.status.in_([RequestStatus.ASSIGNED, RequestStatus.IN_PROGRESS])
-                        )
-                    )
-                )
-                active_requests = active_count.scalar()
-
-                employees_data.append({
-                    "id": emp.id,
-                    "name": f"{emp.first_name} {emp.last_name}",
-                    "specialty": emp.specialty.name,
-                    "rating": emp.average_rating,
-                    "active_requests": active_requests
-                })
-
-            # Используем AI для выбора сотрудника
-            selected_employee_id = await assign_employee_ai(
-                request_description=description,
-                category_name=category.name,
-                priority=priority,
-                available_employees=employees_data
+    # Асинхронная обработка через OpenAI (только если есть фото)
+    if photo_path:
+        try:
+            # 1. Анализируем описание проблемы
+            structured_description = await analyze_problem_description(
+                description=description,
+                category_name=category_obj.name
             )
 
-            if selected_employee_id:
-                new_request.assignee_id = selected_employee_id
-                new_request.status = RequestStatus.ASSIGNED
-                logger.info(f"Заявка {new_request.id} автоматически назначена на сотрудника {selected_employee_id}")
+            # Сохраняем AI анализ
+            new_request.ai_description = structured_description
+            new_request.ai_category = category_obj.name
 
-        await db.commit()
-        await db.refresh(new_request)
+            # 2. Анализируем фото и определяем приоритет
+            full_photo_path = os.path.join(settings.UPLOAD_DIR, photo_path)
+            priority_str = await analyze_image_priority(
+                image_path=full_photo_path,
+                structured_description=structured_description,
+                category_name=category_obj.name
+            )
 
-    except Exception as e:
-        logger.error(f"Ошибка при обработке заявки через AI: {e}")
-        # Заявка уже создана, просто логируем ошибку
+            # Обновляем приоритет заявки (преобразуем строку в enum)
+            priority_mapping = {
+                "low": RequestPriority.LOW,
+                "medium": RequestPriority.MEDIUM,
+                "high": RequestPriority.HIGH
+            }
+            new_request.priority = priority_mapping.get(priority_str.lower(), RequestPriority.MEDIUM)
+
+            # 3. Автоматическое назначение на сотрудника
+            # Получаем доступных сотрудников для этой категории
+            from app.models.specialty import Specialty
+
+            result = await db.execute(
+                select(Employee)
+                .join(Specialty)
+                .where(Specialty.category_id == category_obj.id)
+            )
+            available_employees = result.scalars().all()
+
+            if available_employees:
+                # Подготавливаем данные о сотрудниках
+                employees_data = []
+                for emp in available_employees:
+                    # Считаем активные заявки сотрудника
+                    active_count = await db.execute(
+                        select(func.count(Request.id))
+                        .where(
+                            and_(
+                                Request.assignee_id == emp.id,
+                                Request.status.in_([RequestStatus.ASSIGNED, RequestStatus.IN_PROGRESS])
+                            )
+                        )
+                    )
+                    active_requests = active_count.scalar()
+
+                    employees_data.append({
+                        "id": emp.id,
+                        "name": f"{emp.first_name} {emp.last_name}",
+                        "specialty": emp.specialty.name,
+                        "rating": emp.average_rating,
+                        "active_requests": active_requests
+                    })
+
+                # Используем AI для выбора сотрудника
+                selected_employee_id = await assign_employee_ai(
+                    request_description=description,
+                    category_name=category_obj.name,
+                    priority=new_request.priority.value,
+                    available_employees=employees_data
+                )
+
+                if selected_employee_id:
+                    new_request.assignee_id = selected_employee_id
+                    new_request.status = RequestStatus.ASSIGNED
+                    logger.info(f"Заявка {new_request.id} автоматически назначена на сотрудника {selected_employee_id}")
+
+            await db.commit()
+            await db.refresh(new_request)
+
+        except Exception as e:
+            logger.error(f"Ошибка при обработке заявки через AI: {e}")
+            # Заявка уже создана, просто логируем ошибку
+            await db.commit()
+            await db.refresh(new_request)
 
     logger.info(f"Создана заявка #{new_request.id} от пользователя {current_user.username}")
 
@@ -195,7 +215,7 @@ async def get_all_requests(
     status_filter: Optional[RequestStatus] = None,
     category_id: Optional[int] = None,
     priority: Optional[int] = None,
-    current_user: User = Depends(require_role([UserRole.HOUSING_ADMIN])),
+    current_user: User = Depends(require_role([UserRole.ADMIN])),
     db: AsyncSession = Depends(get_db)
 ):
     """Получение всех заявок с фильтрами (для админов ЖКХ)"""
@@ -249,7 +269,7 @@ async def get_request(
 async def assign_request(
     request_id: int,
     assign_data: RequestAssign,
-    current_user: User = Depends(require_role([UserRole.HOUSING_ADMIN])),
+    current_user: User = Depends(require_role([UserRole.ADMIN])),
     db: AsyncSession = Depends(get_db)
 ):
     """Назначение заявки на сотрудника (для админов ЖКХ)"""
@@ -287,7 +307,8 @@ async def assign_request(
 @router.patch("/{request_id}/complete", response_model=RequestResponse)
 async def complete_request(
     request_id: int,
-    solution_photo: UploadFile = File(...),
+    completion_photo: Optional[UploadFile] = File(None),
+    completion_note: Optional[str] = Form(None),
     current_employee: Employee = Depends(get_current_employee),
     db: AsyncSession = Depends(get_db)
 ):
@@ -309,10 +330,15 @@ async def complete_request(
             detail="Эта заявка не назначена на вас"
         )
 
-    # Сохранение фото решения
-    solution_photo_path = await save_upload_file(solution_photo, subfolder="solutions")
+    # Сохранение фото решения если есть
+    if completion_photo:
+        completion_photo_path = await save_upload_file(completion_photo, subfolder="solutions")
+        request_obj.completion_photo_url = completion_photo_path
 
-    request_obj.solution_photo_url = solution_photo_path
+    # Сохранение заметки если есть
+    if completion_note:
+        request_obj.completion_note = completion_note
+
     request_obj.status = RequestStatus.COMPLETED
     request_obj.completed_at = datetime.utcnow()
 
@@ -327,11 +353,11 @@ async def complete_request(
 @router.patch("/{request_id}/close", response_model=RequestResponse)
 async def close_request(
     request_id: int,
-    close_data: RequestClose,
+    reason: Optional[str] = Form(None),
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Закрытие заявки как решенной или спама (для пользователей)"""
+    """Закрытие заявки (для пользователей)"""
 
     result = await db.execute(select(Request).where(Request.id == request_id))
     request_obj = result.scalar_one_or_none()
@@ -349,22 +375,20 @@ async def close_request(
             detail="Вы можете закрывать только свои заявки"
         )
 
-    # Можно закрыть только как completed или spam
-    if close_data.status not in [RequestStatus.COMPLETED, RequestStatus.SPAM]:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Можно закрыть заявку только как 'completed' или 'spam'"
-        )
+    # Закрываем заявку
+    request_obj.status = RequestStatus.CLOSED
 
-    request_obj.status = close_data.status
+    # Сохраняем причину в completion_note если указана
+    if reason:
+        request_obj.completion_note = reason
 
-    if close_data.status == RequestStatus.COMPLETED and not request_obj.completed_at:
+    if not request_obj.completed_at:
         request_obj.completed_at = datetime.utcnow()
 
     await db.commit()
     await db.refresh(request_obj)
 
-    logger.info(f"Заявка #{request_id} закрыта пользователем как {close_data.status}")
+    logger.info(f"Заявка #{request_id} закрыта пользователем")
 
     return request_obj
 

@@ -31,7 +31,7 @@ async def get_categories(db: AsyncSession = Depends(get_db)):
 @router.post("", response_model=CategoryResponse, status_code=status.HTTP_201_CREATED)
 async def create_category(
     category_data: CategoryCreate,
-    current_user: User = Depends(require_role([UserRole.HOUSING_ADMIN])),
+    current_user: User = Depends(require_role([UserRole.ADMIN])),
     db: AsyncSession = Depends(get_db)
 ):
     """Создание новой категории (для админов ЖКХ)"""
@@ -83,7 +83,7 @@ async def get_category(
 async def update_category(
     category_id: int,
     category_data: CategoryUpdate,
-    current_user: User = Depends(require_role([UserRole.HOUSING_ADMIN])),
+    current_user: User = Depends(require_role([UserRole.ADMIN])),
     db: AsyncSession = Depends(get_db)
 ):
     """Обновление категории (для админов ЖКХ)"""
@@ -113,7 +113,7 @@ async def update_category(
 @router.delete("/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_category(
     category_id: int,
-    current_user: User = Depends(require_role([UserRole.HOUSING_ADMIN])),
+    current_user: User = Depends(require_role([UserRole.ADMIN])),
     db: AsyncSession = Depends(get_db)
 ):
     """Удаление категории (для админов ЖКХ)"""

@@ -65,7 +65,7 @@ async def update_my_profile(
 @router.get("/{user_id}", response_model=UserResponse)
 async def get_user(
     user_id: int,
-    current_user: User = Depends(require_role([UserRole.HOUSING_ADMIN])),
+    current_user: User = Depends(require_role([UserRole.ADMIN])),
     db: AsyncSession = Depends(get_db)
 ):
     """Получение профиля пользователя по ID (для админов)"""

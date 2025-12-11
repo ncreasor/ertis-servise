@@ -57,9 +57,9 @@ async def analyze_image_priority(
     image_path: str,
     structured_description: str,
     category_name: str
-) -> int:
+) -> str:
     """
-    Анализ изображения и определение приоритета проблемы (1-5)
+    Анализ изображения и определение приоритета проблемы (low/medium/high)
     Использует gpt-4o для анализа изображения
     """
     try:
@@ -73,13 +73,11 @@ async def analyze_image_priority(
 Категория: {category_name}
 Описание проблемы: {structured_description}
 
-Проанализируй фотографию и определи ПРИОРИТЕТ проблемы по шкале от 1 до 5:
+Проанализируй фотографию и определи ПРИОРИТЕТ проблемы:
 
-1 - Минимальный (косметические дефекты, не влияющие на безопасность)
-2 - Низкий (незначительные неудобства, можно отложить)
-3 - Средний (требует внимания в течение недели)
-4 - Высокий (создает серьезные неудобства, требует решения в ближайшие дни)
-5 - Критический (угроза безопасности, здоровью или имуществу, требует немедленного решения)
+low - Низкий (косметические дефекты, незначительные неудобства, можно отложить)
+medium - Средний (требует внимания в течение недели, создает неудобства)
+high - Высокий (серьезная проблема, угроза безопасности/здоровью, требует срочного решения)
 
 Учитывай:
 - Степень повреждения/проблемы
@@ -87,7 +85,7 @@ async def analyze_image_priority(
 - Влияние на комфорт проживания
 - Возможные последствия если не решить
 
-Ответь ТОЛЬКО одной цифрой от 1 до 5, без пояснений.
+Ответь ТОЛЬКО одним словом: low, medium или high, без пояснений.
 """
 
         response = await client.chat.completions.create(
@@ -110,23 +108,20 @@ async def analyze_image_priority(
             temperature=0.1
         )
 
-        priority_str = response.choices[0].message.content.strip()
+        priority_str = response.choices[0].message.content.strip().lower()
 
-        # Извлекаем цифру из ответа
-        try:
-            priority = int(priority_str)
-            if not 1 <= priority <= 5:
-                priority = 3  # По умолчанию средний приоритет
-        except ValueError:
-            logger.warning(f"Не удалось распарсить приоритет: {priority_str}, используем 3")
-            priority = 3
+        # Валидация ответа
+        valid_priorities = ["low", "medium", "high"]
+        if priority_str not in valid_priorities:
+            logger.warning(f"Некорректный приоритет '{priority_str}', используем 'medium'")
+            priority_str = "medium"
 
-        logger.info(f"Определен приоритет: {priority}")
-        return priority
+        logger.info(f"Определен приоритет: {priority_str}")
+        return priority_str
 
     except Exception as e:
         logger.error(f"Ошибка при анализе изображения: {e}")
-        return 3  # В случае ошибки возвращаем средний приоритет
+        return "medium"  # В случае ошибки возвращаем средний приоритет
 
 
 async def assign_employee_ai(

@@ -1,7 +1,7 @@
 """
 Модель заявки
 """
-from sqlalchemy import Column, String, Text, Integer, ForeignKey, DateTime, Enum as SQLEnum
+from sqlalchemy import Column, String, Text, Integer, Float, ForeignKey, DateTime, Enum as SQLEnum
 from sqlalchemy.orm import relationship
 import enum
 
@@ -10,21 +10,18 @@ from app.models.base import BaseModel
 
 class RequestStatus(str, enum.Enum):
     """Статусы заявки"""
-    NEW = "new"
+    PENDING = "pending"
     ASSIGNED = "assigned"
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
-    SPAM = "spam"
-    CANCELLED = "cancelled"
+    CLOSED = "closed"
 
 
-class RequestPriority(int, enum.Enum):
-    """Приоритет заявки (1-5, где 5 - самый высокий)"""
-    VERY_LOW = 1
-    LOW = 2
-    MEDIUM = 3
-    HIGH = 4
-    CRITICAL = 5
+class RequestPriority(str, enum.Enum):
+    """Приоритет заявки"""
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
 
 
 class Request(BaseModel):
@@ -32,14 +29,23 @@ class Request(BaseModel):
     __tablename__ = "requests"
 
     # Основная информация
+    title = Column(String(255), nullable=True)
     description = Column(Text, nullable=False)
+    problem_type = Column(String(100), nullable=True)
     address = Column(String(500), nullable=False)
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
     photo_url = Column(String(500), nullable=True)  # Фото проблемы
-    solution_photo_url = Column(String(500), nullable=True)  # Фото решения
+    completion_photo_url = Column(String(500), nullable=True)  # Фото решения (renamed from solution_photo_url)
+    completion_note = Column(Text, nullable=True)  # Заметка при завершении
+
+    # AI Analysis
+    ai_category = Column(String(100), nullable=True)
+    ai_description = Column(Text, nullable=True)
 
     # Статус и приоритет
-    status = Column(SQLEnum(RequestStatus), default=RequestStatus.NEW, nullable=False)
-    priority = Column(Integer, default=RequestPriority.MEDIUM.value, nullable=False)
+    status = Column(SQLEnum(RequestStatus), default=RequestStatus.PENDING, nullable=False)
+    priority = Column(SQLEnum(RequestPriority), default=RequestPriority.MEDIUM, nullable=False)
 
     # Даты
     completed_at = Column(DateTime, nullable=True)

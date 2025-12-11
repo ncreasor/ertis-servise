@@ -1,7 +1,7 @@
 """
 Модель пользователя
 """
-from sqlalchemy import Column, String, Enum as SQLEnum
+from sqlalchemy import Column, String, Boolean, Enum as SQLEnum
 from sqlalchemy.orm import relationship
 import enum
 
@@ -10,9 +10,9 @@ from app.models.base import BaseModel
 
 class UserRole(str, enum.Enum):
     """Роли пользователей"""
-    USER = "user"
+    CITIZEN = "citizen"
     EMPLOYEE = "employee"
-    HOUSING_ADMIN = "housing_admin"
+    ADMIN = "admin"
 
 
 class User(BaseModel):
@@ -21,10 +21,13 @@ class User(BaseModel):
 
     first_name = Column(String(100), nullable=False)
     last_name = Column(String(100), nullable=False)
+    middle_name = Column(String(100), nullable=True)
     username = Column(String(50), unique=True, nullable=False, index=True)
-    email = Column(String(255), unique=True, nullable=True, index=True)
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    phone = Column(String(20), nullable=False)
     password_hash = Column(String(255), nullable=False)
-    role = Column(SQLEnum(UserRole), default=UserRole.USER, nullable=False)
+    role = Column(SQLEnum(UserRole), default=UserRole.CITIZEN, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
 
     # Relationships
     requests = relationship("Request", back_populates="creator", foreign_keys="Request.creator_id")

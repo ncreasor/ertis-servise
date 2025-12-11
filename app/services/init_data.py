@@ -137,7 +137,7 @@ async def create_demo_data(db: AsyncSession):
         username="admin",
         email="admin@gkh.example.com",
         password_hash=get_password_hash("admin123"),
-        role=UserRole.HOUSING_ADMIN
+        role=UserRole.ADMIN
     )
     db.add(demo_admin)
 

@@ -13,6 +13,13 @@ class Token(BaseModel):
     token_type: str = "bearer"
 
 
+class AuthResponse(BaseModel):
+    """Схема ответа при аутентификации"""
+    access_token: str
+    token_type: str = "bearer"
+    user: dict  # User object будет добавлен динамически
+
+
 class TokenData(BaseModel):
     """Данные токена"""
     user_id: Optional[int] = None

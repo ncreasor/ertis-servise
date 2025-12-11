@@ -10,9 +10,9 @@ from app.core.database import get_db
 from app.core.security import verify_password, get_password_hash, create_access_token
 from app.models.user import User, UserRole
 from app.models.employee import Employee
-from app.schemas.user import UserCreate, UserResponse
+from app.schemas.user import UserCreate, UserResponse, UserLogin
 from app.schemas.employee import EmployeeLogin
-from app.schemas.auth import Token
+from app.schemas.auth import Token, AuthResponse
 from app.core.logging import get_logger
 
 logger = get_logger()
@@ -20,7 +20,7 @@ logger = get_logger()
 router = APIRouter()
 
 
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
 async def register(user_data: UserCreate, db: AsyncSession = Depends(get_db)):
     """Регистрация нового пользователя"""
 
@@ -34,16 +34,25 @@ async def register(user_data: UserCreate, db: AsyncSession = Depends(get_db)):
             detail="Пользователь с таким username уже существует"
         )
 
-    # Проверка уникальности email если указан
-    if user_data.email:
-        result = await db.execute(select(User).where(User.email == user_data.email))
-        existing_email = result.scalar_one_or_none()
+    # Проверка уникальности email
+    result = await db.execute(select(User).where(User.email == user_data.email))
+    existing_email = result.scalar_one_or_none()
 
-        if existing_email:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Пользователь с таким email уже существует"
-            )
+    if existing_email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Пользователь с таким email уже существует"
+        )
+
+    # Проверка уникальности phone
+    result = await db.execute(select(User).where(User.phone == user_data.phone))
+    existing_phone = result.scalar_one_or_none()
+
+    if existing_phone:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Пользователь с таким телефоном уже существует"
+        )
 
     # Создание пользователя
     password_hash = get_password_hash(user_data.password)
@@ -51,10 +60,12 @@ async def register(user_data: UserCreate, db: AsyncSession = Depends(get_db)):
     new_user = User(
         first_name=user_data.first_name,
         last_name=user_data.last_name,
+        middle_name=user_data.middle_name,
         username=user_data.username,
         email=user_data.email,
+        phone=user_data.phone,
         password_hash=password_hash,
-        role=UserRole.USER
+        role=UserRole.CITIZEN
     )
 
     db.add(new_user)
@@ -63,21 +74,37 @@ async def register(user_data: UserCreate, db: AsyncSession = Depends(get_db)):
 
     logger.info(f"Зарегистрирован новый пользователь: {new_user.username}")
 
-    return new_user
+    # Создаем токен
+    access_token = create_access_token(
+        data={
+            "sub": new_user.username,
+            "user_id": new_user.id,
+            "role": new_user.role.value
+        }
+    )
+
+    # Формируем user объект для ответа
+    user_dict = UserResponse.model_validate(new_user).model_dump()
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": user_dict
+    }
 
 
-@router.post("/login", response_model=Token)
+@router.post("/login", response_model=AuthResponse)
 async def login(
-    form_data: OAuth2PasswordRequestForm = Depends(),
+    login_data: UserLogin,
     db: AsyncSession = Depends(get_db)
 ):
     """Универсальный вход для пользователей, сотрудников и админов ЖКХ"""
 
-    # Сначала ищем среди пользователей
-    result = await db.execute(select(User).where(User.username == form_data.username))
+    # Ищем пользователя по email
+    result = await db.execute(select(User).where(User.email == login_data.email))
     user = result.scalar_one_or_none()
 
-    if user and verify_password(form_data.password, user.password_hash):
+    if user and verify_password(login_data.password, user.password_hash):
         # Пользователь найден и пароль верный
         access_token = create_access_token(
             data={
@@ -89,32 +116,21 @@ async def login(
 
         logger.info(f"Успешный вход пользователя: {user.username}")
 
-        return {"access_token": access_token, "token_type": "bearer"}
+        # Формируем user объект для ответа
+        user_dict = UserResponse.model_validate(user).model_dump()
 
-    # Если не найден среди пользователей, ищем среди сотрудников
-    result = await db.execute(select(Employee).where(Employee.username == form_data.username))
-    employee = result.scalar_one_or_none()
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user": user_dict
+        }
 
-    if employee and verify_password(form_data.password, employee.password_hash):
-        # Сотрудник найден и пароль верный
-        access_token = create_access_token(
-            data={
-                "sub": employee.username,
-                "user_id": -1,  # У сотрудников нет user_id
-                "role": UserRole.EMPLOYEE.value,
-                "employee_id": employee.id
-            }
-        )
-
-        logger.info(f"Успешный вход сотрудника: {employee.username}")
-
-        return {"access_token": access_token, "token_type": "bearer"}
-
-    # Неверные учетные данные
-    logger.warning(f"Неудачная попытка входа: {form_data.username}")
+    # Если не найден или пароль неверный
+    # Также проверяем среди сотрудников (они могут входить через username в отдельном эндпоинте)
+    logger.warning(f"Неудачная попытка входа: {login_data.email}")
 
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Неверный username или пароль",
+        detail="Неверный email или пароль",
         headers={"WWW-Authenticate": "Bearer"},
     )

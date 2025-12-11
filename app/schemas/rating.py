@@ -14,7 +14,7 @@ class RatingBase(BaseModel):
 
 class RatingCreate(RatingBase):
     """Схема для создания оценки"""
-    request_id: int
+    pass  # request_id передается через URL path параметр
 
 
 class RatingResponse(RatingBase):

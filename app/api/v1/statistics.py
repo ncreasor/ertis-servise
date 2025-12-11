@@ -23,7 +23,7 @@ router = APIRouter()
 
 @router.get("/overview")
 async def get_statistics_overview(
-    current_user: User = Depends(require_role([UserRole.HOUSING_ADMIN])),
+    current_user: User = Depends(require_role([UserRole.ADMIN])),
     db: AsyncSession = Depends(get_db)
 ) -> Dict[str, Any]:
     """Общая статистика (для админов ЖКХ)"""
@@ -114,7 +114,7 @@ async def get_statistics_overview(
 @router.get("/employee/{employee_id}")
 async def get_employee_statistics(
     employee_id: int,
-    current_user: User = Depends(require_role([UserRole.HOUSING_ADMIN])),
+    current_user: User = Depends(require_role([UserRole.ADMIN])),
     db: AsyncSession = Depends(get_db)
 ) -> Dict[str, Any]:
     """Статистика по конкретному сотруднику"""
@@ -180,7 +180,7 @@ async def get_employee_statistics(
 
 @router.get("/requests/priority")
 async def get_requests_by_priority(
-    current_user: User = Depends(require_role([UserRole.HOUSING_ADMIN])),
+    current_user: User = Depends(require_role([UserRole.ADMIN])),
     db: AsyncSession = Depends(get_db)
 ) -> Dict[str, Any]:
     """Распределение заявок по приоритетам"""
