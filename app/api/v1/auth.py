@@ -34,25 +34,16 @@ async def register(user_data: UserCreate, db: AsyncSession = Depends(get_db)):
             detail="Пользователь с таким username уже существует"
         )
 
-    # Проверка уникальности email
-    result = await db.execute(select(User).where(User.email == user_data.email))
-    existing_email = result.scalar_one_or_none()
+    # Проверка уникальности email если указан
+    if user_data.email:
+        result = await db.execute(select(User).where(User.email == user_data.email))
+        existing_email = result.scalar_one_or_none()
 
-    if existing_email:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Пользователь с таким email уже существует"
-        )
-
-    # Проверка уникальности phone
-    result = await db.execute(select(User).where(User.phone == user_data.phone))
-    existing_phone = result.scalar_one_or_none()
-
-    if existing_phone:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Пользователь с таким телефоном уже существует"
-        )
+        if existing_email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Пользователь с таким email уже существует"
+            )
 
     # Создание пользователя
     password_hash = get_password_hash(user_data.password)
@@ -60,10 +51,8 @@ async def register(user_data: UserCreate, db: AsyncSession = Depends(get_db)):
     new_user = User(
         first_name=user_data.first_name,
         last_name=user_data.last_name,
-        middle_name=user_data.middle_name,
         username=user_data.username,
         email=user_data.email,
-        phone=user_data.phone,
         password_hash=password_hash,
         role=UserRole.CITIZEN
     )
@@ -100,8 +89,8 @@ async def login(
 ):
     """Универсальный вход для пользователей, сотрудников и админов ЖКХ"""
 
-    # Ищем пользователя по email
-    result = await db.execute(select(User).where(User.email == login_data.email))
+    # Ищем пользователя по username
+    result = await db.execute(select(User).where(User.username == login_data.username))
     user = result.scalar_one_or_none()
 
     if user and verify_password(login_data.password, user.password_hash):
@@ -126,11 +115,11 @@ async def login(
         }
 
     # Если не найден или пароль неверный
-    # Также проверяем среди сотрудников (они могут входить через username в отдельном эндпоинте)
-    logger.warning(f"Неудачная попытка входа: {login_data.email}")
+    # Также проверяем среди сотрудников (они могут входить через отдельный эндпоинт)
+    logger.warning(f"Неудачная попытка входа: {login_data.username}")
 
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Неверный email или пароль",
+        detail="Неверный username или пароль",
         headers={"WWW-Authenticate": "Bearer"},
     )

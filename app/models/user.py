@@ -21,10 +21,8 @@ class User(BaseModel):
 
     first_name = Column(String(100), nullable=False)
     last_name = Column(String(100), nullable=False)
-    middle_name = Column(String(100), nullable=True)
     username = Column(String(50), unique=True, nullable=False, index=True)
-    email = Column(String(255), unique=True, nullable=False, index=True)
-    phone = Column(String(20), nullable=False)
+    email = Column(String(255), unique=True, nullable=True, index=True)
     password_hash = Column(String(255), nullable=False)
     role = Column(SQLEnum(UserRole), default=UserRole.CITIZEN, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
