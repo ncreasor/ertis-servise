@@ -1,0 +1,39 @@
+# FastAPI и веб-сервер
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+gunicorn>=21.2.0
+python-multipart>=0.0.12
+
+# Валидация данных
+pydantic>=2.10.0
+pydantic-settings>=2.6.0
+email-validator>=2.1.0
+
+# CORS и middleware
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+
+# База данных
+sqlalchemy>=2.0.0
+asyncmy>=0.2.9
+aiomysql>=0.2.0
+alembic>=1.13.0
+
+# Работа с датой и временем
+python-dateutil>=2.9.0
+
+# Переменные окружения
+python-dotenv>=1.0.1
+
+# HTTP клиент
+httpx>=0.28.0
+
+# Логирование
+loguru>=0.7.3
+
+# OpenAI API
+openai>=1.54.0
+
+# Работа с файлами
+aiofiles>=24.1.0
+pillow>=10.0.0

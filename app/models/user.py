@@ -1,0 +1,31 @@
+"""
+Модель пользователя
+"""
+from sqlalchemy import Column, String, Enum as SQLEnum
+from sqlalchemy.orm import relationship
+import enum
+
+from app.models.base import BaseModel
+
+
+class UserRole(str, enum.Enum):
+    """Роли пользователей"""
+    USER = "user"
+    EMPLOYEE = "employee"
+    HOUSING_ADMIN = "housing_admin"
+
+
+class User(BaseModel):
+    """Модель пользователя"""
+    __tablename__ = "users"
+
+    first_name = Column(String(100), nullable=False)
+    last_name = Column(String(100), nullable=False)
+    username = Column(String(50), unique=True, nullable=False, index=True)
+    email = Column(String(255), unique=True, nullable=True, index=True)
+    password_hash = Column(String(255), nullable=False)
+    role = Column(SQLEnum(UserRole), default=UserRole.USER, nullable=False)
+
+    # Relationships
+    requests = relationship("Request", back_populates="creator", foreign_keys="Request.creator_id")
+    ratings = relationship("Rating", back_populates="user")
