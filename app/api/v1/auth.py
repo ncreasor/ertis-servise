@@ -10,7 +10,7 @@ from app.core.database import get_db
 from app.core.security import verify_password, get_password_hash, create_access_token
 from app.models.user import User, UserRole
 from app.models.employee import Employee
-from app.schemas.user import UserCreate
+from app.schemas.user import UserCreate, UserResponse
 from app.schemas.employee import EmployeeLogin
 from app.schemas.auth import Token
 from app.core.logging import get_logger
@@ -118,6 +118,3 @@ async def login(
         detail="Неверный username или пароль",
         headers={"WWW-Authenticate": "Bearer"},
     )
-
-
-from app.core.dependencies import get_current_active_user
