@@ -10,9 +10,9 @@ from app.models.base import BaseModel
 
 class UserRole(str, enum.Enum):
     """Роли пользователей"""
-    CITIZEN = "citizen"
-    EMPLOYEE = "employee"
-    ADMIN = "admin"
+    CITIZEN = "CITIZEN"
+    EMPLOYEE = "EMPLOYEE"
+    ADMIN = "ADMIN"
 
 
 class User(BaseModel):
