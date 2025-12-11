@@ -44,8 +44,8 @@ class Request(BaseModel):
     ai_description = Column(Text, nullable=True)
 
     # Статус и приоритет
-    status = Column(SQLEnum(RequestStatus), default=RequestStatus.PENDING, nullable=False)
-    priority = Column(SQLEnum(RequestPriority), default=RequestPriority.MEDIUM, nullable=False)
+    status = Column(SQLEnum(RequestStatus, values_callable=lambda x: [e.value for e in x]), default=RequestStatus.PENDING, nullable=False)
+    priority = Column(SQLEnum(RequestPriority, values_callable=lambda x: [e.value for e in x]), default=RequestPriority.MEDIUM, nullable=False)
 
     # Даты
     completed_at = Column(DateTime, nullable=True)
