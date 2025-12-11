@@ -31,7 +31,6 @@ class UserResponse(UserBase):
     """Схема ответа с пользователем"""
     id: int
     role: UserRole
-    is_active: bool = True
     created_at: datetime
     updated_at: datetime
 
