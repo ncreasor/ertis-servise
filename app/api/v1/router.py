@@ -11,7 +11,8 @@ from app.api.v1 import (
     categories,
     statistics,
     addresses,
-    notifications
+    notifications,
+    chat
 )
 
 # Создаем главный роутер для v1
@@ -27,3 +28,4 @@ api_router.include_router(categories.router, prefix="/categories", tags=["Catego
 api_router.include_router(statistics.router, prefix="/statistics", tags=["Statistics"])
 api_router.include_router(addresses.router, prefix="/addresses", tags=["Addresses"])
 api_router.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])
+api_router.include_router(chat.router, prefix="/chat", tags=["Chat"])
