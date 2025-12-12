@@ -22,7 +22,7 @@ class RequestCreate(RequestBase):
 class RequestResponse(BaseModel):
     """Схема ответа с заявкой"""
     id: int
-    user_id: int  # Совместимость с фронтом (creator_id)
+    user_id: int = Field(validation_alias='creator_id')  # Совместимость с фронтом (creator_id)
     category_id: Optional[int] = None
     title: Optional[str] = None
     description: str
@@ -35,24 +35,16 @@ class RequestResponse(BaseModel):
     completion_note: Optional[str] = None
     status: RequestStatus
     priority: RequestPriority
-    assigned_employee_id: Optional[int] = None  # Совместимость с фронтом (assignee_id)
+    assigned_employee_id: Optional[int] = Field(None, validation_alias='assignee_id')  # Совместимость с фронтом
     ai_category: Optional[str] = None
     ai_description: Optional[str] = None
     completed_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
 
-    @classmethod
-    def model_validate(cls, obj, **kwargs):
-        """Переопределяем для совместимости полей creator_id -> user_id"""
-        if hasattr(obj, 'creator_id'):
-            obj.user_id = obj.creator_id
-        if hasattr(obj, 'assignee_id'):
-            obj.assigned_employee_id = obj.assignee_id
-        return super().model_validate(obj, **kwargs)
-
     class Config:
         from_attributes = True
+        populate_by_name = True
 
 
 class RequestUpdate(BaseModel):
