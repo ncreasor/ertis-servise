@@ -30,6 +30,14 @@ from app.services.openai_service import (
     assign_employee_ai,
     generate_user_recommendation
 )
+from app.services.notification_service import (
+    notify_request_assigned,
+    notify_request_completed,
+    notify_request_closed,
+    notify_request_in_progress,
+    notify_status_changed,
+    notify_employee_assigned_task
+)
 from app.core.logging import get_logger
 from app.core.config import settings
 import os
@@ -333,6 +341,14 @@ async def assign_request(
     request_obj.assignee_id = assign_data.assignee_id
     request_obj.status = RequestStatus.ASSIGNED
 
+    # Отправляем уведомления
+    employee_name = f"{employee.first_name} {employee.last_name}"
+    await notify_request_assigned(db, request_obj.creator_id, request_id, employee_name)
+    
+    # Уведомляем сотрудника если у него есть user_id
+    if employee.user_id:
+        await notify_employee_assigned_task(db, employee.user_id, request_id, request_obj.address)
+
     await db.commit()
     await db.refresh(request_obj)
 
@@ -379,10 +395,43 @@ async def complete_request(
     request_obj.status = RequestStatus.COMPLETED
     request_obj.completed_at = datetime.utcnow()
 
+    # Отправляем уведомление создателю заявки
+    await notify_request_completed(db, request_obj.creator_id, request_id)
+
     await db.commit()
     await db.refresh(request_obj)
 
     logger.info(f"Заявка #{request_id} завершена сотрудником {current_employee.id}")
+
+    return request_obj
+
+
+@router.patch("/{request_id}/start", response_model=RequestResponse)
+async def start_request(
+    request_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Начать работу над заявкой (для сотрудников и админов)"""
+
+    result = await db.execute(select(Request).where(Request.id == request_id))
+    request_obj = result.scalar_one_or_none()
+
+    if not request_obj:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Заявка не найдена"
+        )
+
+    request_obj.status = RequestStatus.IN_PROGRESS
+
+    # Отправляем уведомление создателю заявки
+    await notify_request_in_progress(db, request_obj.creator_id, request_id)
+
+    await db.commit()
+    await db.refresh(request_obj)
+
+    logger.info(f"Заявка #{request_id} переведена в статус 'в работе'")
 
     return request_obj
 
@@ -428,6 +477,78 @@ async def close_request(
     logger.info(f"Заявка #{request_id} закрыта пользователем")
 
     return request_obj
+
+
+@router.patch("/{request_id}/status", response_model=RequestResponse)
+async def update_request_status(
+    request_id: int,
+    new_status: RequestStatus,
+    note: Optional[str] = None,
+    current_user: User = Depends(require_role([UserRole.ADMIN])),
+    db: AsyncSession = Depends(get_db)
+):
+    """Изменение статуса заявки админом"""
+
+    result = await db.execute(select(Request).where(Request.id == request_id))
+    request_obj = result.scalar_one_or_none()
+
+    if not request_obj:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Заявка не найдена"
+        )
+
+    old_status = request_obj.status
+    request_obj.status = new_status
+
+    if note:
+        request_obj.completion_note = note
+
+    if new_status == RequestStatus.COMPLETED and not request_obj.completed_at:
+        request_obj.completed_at = datetime.utcnow()
+
+    # Отправляем уведомление о смене статуса
+    await notify_status_changed(db, request_obj.creator_id, request_id, new_status.value)
+
+    await db.commit()
+    await db.refresh(request_obj)
+
+    logger.info(f"Заявка #{request_id}: статус изменён {old_status.value} -> {new_status.value}")
+
+    return request_obj
+
+
+@router.delete("/{request_id}")
+async def delete_request(
+    request_id: int,
+    current_user: User = Depends(require_role([UserRole.ADMIN])),
+    db: AsyncSession = Depends(get_db)
+):
+    """Удаление заявки (для админов)"""
+
+    result = await db.execute(select(Request).where(Request.id == request_id))
+    request_obj = result.scalar_one_or_none()
+
+    if not request_obj:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Заявка не найдена"
+        )
+
+    # Уведомляем создателя об удалении
+    await notify_request_closed(
+        db, 
+        request_obj.creator_id, 
+        request_id, 
+        "Заявка была удалена администратором"
+    )
+
+    await db.delete(request_obj)
+    await db.commit()
+
+    logger.info(f"Заявка #{request_id} удалена админом {current_user.username}")
+
+    return {"message": "Заявка успешно удалена"}
 
 
 @router.post("/{request_id}/rate", response_model=RatingResponse, status_code=status.HTTP_201_CREATED)
