@@ -120,3 +120,95 @@ async def delete_my_account(
     logger.info(f"Пользователь {current_user.username} удалил свой аккаунт")
 
     return None
+
+
+@router.get("", response_model=list[UserResponse])
+async def get_all_users(
+    current_user: User = Depends(require_role([UserRole.ADMIN])),
+    db: AsyncSession = Depends(get_db)
+):
+    """Получение списка всех пользователей (для админов)"""
+    
+    result = await db.execute(select(User).order_by(User.created_at.desc()))
+    users = result.scalars().all()
+    
+    return users
+
+
+@router.post("/setup-test-accounts", response_model=MessageResponse)
+async def setup_test_accounts(
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Создание тестовых аккаунтов (публичный эндпоинт для первоначальной настройки).
+    Пароль для всех: 123456
+    """
+    
+    test_accounts = [
+        {"first_name": "Админ", "last_name": "ЖКХ", "username": "admin", "email": "admin@ertis.kz", "role": UserRole.ADMIN},
+        {"first_name": "Менеджер", "last_name": "Системы", "username": "manager", "email": "manager@ertis.kz", "role": UserRole.ADMIN},
+        {"first_name": "Иван", "last_name": "Иванов", "username": "user", "email": "user@example.com", "role": UserRole.CITIZEN},
+        {"first_name": "Алексей", "last_name": "Петров", "username": "worker", "email": "worker@ertis.kz", "role": UserRole.EMPLOYEE},
+    ]
+    
+    created = []
+    password_hash = get_password_hash("123456")
+    
+    for account in test_accounts:
+        # Проверяем существует ли
+        result = await db.execute(select(User).where(User.username == account["username"]))
+        existing = result.scalar_one_or_none()
+        
+        if existing:
+            # Обновляем пароль
+            existing.password_hash = password_hash
+            created.append(f"{account['username']} (обновлен)")
+        else:
+            # Создаём нового
+            new_user = User(
+                first_name=account["first_name"],
+                last_name=account["last_name"],
+                username=account["username"],
+                email=account["email"],
+                password_hash=password_hash,
+                role=account["role"]
+            )
+            db.add(new_user)
+            created.append(account["username"])
+    
+    await db.commit()
+    
+    logger.info(f"Созданы/обновлены тестовые аккаунты: {created}")
+    
+    return MessageResponse(
+        message=f"Тестовые аккаунты готовы: {', '.join(created)}. Пароль для всех: 123456"
+    )
+
+
+@router.patch("/{user_id}/role", response_model=UserResponse)
+async def change_user_role(
+    user_id: int,
+    new_role: UserRole,
+    current_user: User = Depends(require_role([UserRole.ADMIN])),
+    db: AsyncSession = Depends(get_db)
+):
+    """Изменение роли пользователя (для админов)"""
+    
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Пользователь не найден"
+        )
+    
+    old_role = user.role
+    user.role = new_role
+    
+    await db.commit()
+    await db.refresh(user)
+    
+    logger.info(f"Админ {current_user.username} изменил роль пользователя {user.username}: {old_role} -> {new_role}")
+    
+    return user
