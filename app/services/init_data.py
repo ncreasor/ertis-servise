@@ -107,6 +107,7 @@ async def create_demo_data(db: AsyncSession):
 
     from app.models.housing_organization import HousingOrganization
     from app.models.user import User, UserRole
+    from app.models.employee import Employee
     from app.core.security import get_password_hash
 
     # Проверяем есть ли уже демо-организация
@@ -123,9 +124,9 @@ async def create_demo_data(db: AsyncSession):
     demo_org = HousingOrganization(
         name="Демо ЖКХ",
         description="Демонстрационная организация для тестирования",
-        phone="+7 (999) 123-45-67",
-        email="demo@gkh.example.com",
-        address="г. Москва, ул. Примерная, д. 1"
+        phone="+7 (7182) 32-00-01",
+        email="demo@ertis.kz",
+        address="г. Павлодар, ул. Ленина, д. 1"
     )
     db.add(demo_org)
     await db.flush()
@@ -135,25 +136,57 @@ async def create_demo_data(db: AsyncSession):
         first_name="Админ",
         last_name="ЖКХ",
         username="admin",
-        email="admin@gkh.example.com",
+        email="admin@ertis.kz",
         password_hash=get_password_hash("admin123"),
         role=UserRole.ADMIN
     )
     db.add(demo_admin)
 
-    # Создаем демо пользователя
+    # Создаем демо пользователя (жильца)
     demo_user = User(
         first_name="Иван",
         last_name="Иванов",
         username="user",
         email="user@example.com",
         password_hash=get_password_hash("user123"),
-        role=UserRole.USER
+        role=UserRole.CITIZEN
     )
     db.add(demo_user)
+
+    # Создаем демо сотрудника (рабочего)
+    demo_worker_user = User(
+        first_name="Алексей",
+        last_name="Петров",
+        username="worker",
+        email="worker@ertis.kz",
+        password_hash=get_password_hash("worker123"),
+        role=UserRole.EMPLOYEE
+    )
+    db.add(demo_worker_user)
+    await db.flush()
+
+    # Получаем специальность "Электрик"
+    specialty_result = await db.execute(
+        select(Specialty).where(Specialty.name == "Электрик")
+    )
+    specialty = specialty_result.scalar_one_or_none()
+
+    if specialty:
+        # Создаем запись сотрудника
+        demo_employee = Employee(
+            first_name="Алексей",
+            last_name="Петров",
+            user_id=demo_worker_user.id,
+            specialty_id=specialty.id,
+            organization_id=demo_org.id,
+            phone="+7 (777) 123-45-67",
+            average_rating=4.5
+        )
+        db.add(demo_employee)
 
     await db.commit()
 
     logger.info("Демо-данные созданы:")
     logger.info("  Админ ЖКХ - username: admin, password: admin123")
-    logger.info("  Пользователь - username: user, password: user123")
+    logger.info("  Житель - username: user, password: user123")
+    logger.info("  Рабочий - username: worker, password: worker123")

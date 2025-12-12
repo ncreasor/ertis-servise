@@ -60,8 +60,8 @@ async def lifespan(app: FastAPI):
         async with AsyncSessionLocal() as session:
             try:
                 await init_categories_and_specialties(session)
-                # Раскомментируйте следующую строку для создания демо-данных
-                # await create_demo_data(session)
+                # Создание демо-данных (тестовые аккаунты)
+                await create_demo_data(session)
             except Exception as e:
                 logger.error(f"Ошибка при инициализации данных: {e}")
 
