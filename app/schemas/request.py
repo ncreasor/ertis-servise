@@ -37,7 +37,9 @@ class RequestResponse(BaseModel):
     priority: RequestPriority
     assigned_employee_id: Optional[int] = Field(None, validation_alias='assignee_id')  # Совместимость с фронтом
     ai_category: Optional[str] = None
-    ai_description: Optional[str] = None
+    ai_recommendation: Optional[str] = None  # Рекомендация AI для пользователя
+    ai_analysis: Optional[str] = None  # Внутренний AI анализ
+    ai_description: Optional[str] = None  # Legacy
     completed_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime

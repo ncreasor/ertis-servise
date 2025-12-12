@@ -27,7 +27,8 @@ from app.services.file_service import save_upload_file, get_file_url
 from app.services.openai_service import (
     analyze_problem_description,
     analyze_image_priority,
-    assign_employee_ai
+    assign_employee_ai,
+    generate_user_recommendation
 )
 from app.core.logging import get_logger
 from app.core.config import settings
@@ -88,14 +89,14 @@ async def create_request(
     # Асинхронная обработка через OpenAI (только если есть фото)
     if photo_path:
         try:
-            # 1. Анализируем описание проблемы
+            # 1. Анализируем описание проблемы (внутренний анализ)
             structured_description = await analyze_problem_description(
                 description=description,
                 category_name=category_obj.name
             )
 
-            # Сохраняем AI анализ
-            new_request.ai_description = structured_description
+            # Сохраняем AI анализ (внутреннее поле, не показывается пользователю напрямую)
+            new_request.ai_analysis = structured_description
             new_request.ai_category = category_obj.name
 
             # 2. Анализируем фото и определяем приоритет
@@ -113,6 +114,14 @@ async def create_request(
                 "high": RequestPriority.HIGH
             }
             new_request.priority = priority_mapping.get(priority_str.lower(), RequestPriority.MEDIUM)
+            
+            # 3. Генерируем рекомендацию для пользователя
+            user_recommendation = await generate_user_recommendation(
+                description=description,
+                category_name=category_obj.name,
+                priority=priority_str.lower()
+            )
+            new_request.ai_recommendation = user_recommendation
 
             # 3. Автоматическое назначение на сотрудника
             # Получаем доступных сотрудников для этой категории
@@ -174,6 +183,34 @@ async def create_request(
     logger.info(f"Создана заявка #{new_request.id} от пользователя {current_user.username}")
 
     return new_request
+
+
+@router.get("/map", response_model=List[RequestResponse])
+async def get_requests_for_map(
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Получение заявок для отображения на карте (публичный endpoint).
+    Возвращает только заявки с координатами и статусами: pending, assigned, in_progress
+    """
+    result = await db.execute(
+        select(Request)
+        .where(
+            and_(
+                Request.latitude.isnot(None),
+                Request.longitude.isnot(None),
+                Request.status.in_([
+                    RequestStatus.PENDING,
+                    RequestStatus.ASSIGNED,
+                    RequestStatus.IN_PROGRESS
+                ])
+            )
+        )
+        .order_by(Request.created_at.desc())
+        .limit(100)
+    )
+    requests = result.scalars().all()
+    return requests
 
 
 @router.get("/my", response_model=List[RequestResponse])

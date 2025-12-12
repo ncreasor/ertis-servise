@@ -38,7 +38,7 @@ async def suggest_addresses(
             "apikey": settings.YANDEX_MAPS_API_KEY,
             "geocode": query,
             "format": "json",
-            "results": 10,
+            "results": 3,
             "lang": "ru_RU"
         }
 

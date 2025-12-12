@@ -41,7 +41,9 @@ class Request(BaseModel):
 
     # AI Analysis
     ai_category = Column(String(100), nullable=True)
-    ai_description = Column(Text, nullable=True)
+    ai_analysis = Column(Text, nullable=True)  # Внутренний AI анализ для определения приоритета
+    ai_recommendation = Column(Text, nullable=True)  # Рекомендация AI для пользователя
+    ai_description = Column(Text, nullable=True)  # Legacy поле (не используется)
 
     # Статус и приоритет
     status = Column(SQLEnum(RequestStatus, values_callable=lambda x: [e.value for e in x]), default=RequestStatus.PENDING, nullable=False)

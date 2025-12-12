@@ -46,6 +46,14 @@ async def lifespan(app: FastAPI):
                 await migrate_enum_values(session)
             except Exception as e:
                 logger.warning(f"Миграция ENUM пропущена: {e}")
+        
+        # Автоматическая миграция: добавление новых колонок
+        from app.services.column_migration import migrate_add_columns
+        async with AsyncSessionLocal() as session:
+            try:
+                await migrate_add_columns(session)
+            except Exception as e:
+                logger.warning(f"Миграция колонок пропущена: {e}")
 
         # Добавление начальных данных
         from app.services.init_data import init_categories_and_specialties, create_demo_data
